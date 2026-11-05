@@ -5,7 +5,7 @@ namespace Likvido.Http.Internal;
 
 /// <summary>
 /// The guard around a guarded client's <see cref="SocketsHttpHandler"/>: refuses a request whose
-/// origin is not in the policy before anything is sent, refuses a redirect, and caps the response body.
+/// origin the policy does not allow before anything is sent, refuses a redirect, and caps the response body.
 /// <para>
 /// It is the client's primary handler, wrapping the socket handler directly, so it is the innermost
 /// handler whatever the caller adds to the client. It therefore sees the request exactly as it is
@@ -69,7 +69,7 @@ internal sealed class OutboundRequestGuardHandler(
             throw reporter.Refuse(
                 OutboundRequestRefusalReason.UnlistedOrigin,
                 RefusalReporter.OriginOf(uri),
-                "the origin is not in the client's policy. Nothing was sent.");
+                "the origin is not allowed by the client's policy. Nothing was sent.");
         }
 
         // ⚠️ HTTP/3 runs over QUIC and never calls the connect callback, so it would reach the host

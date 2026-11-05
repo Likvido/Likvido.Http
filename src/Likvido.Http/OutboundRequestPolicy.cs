@@ -11,10 +11,15 @@ namespace Likvido.Http;
 /// wildcards, and the port is the scheme's default unless the origin names one. Listing
 /// <c>https://example.com</c> does not allow <c>http://example.com</c>: an http origin is allowed only
 /// when it is listed itself.
+/// <para>
+/// When the origins cannot be listed in advance, <see cref="ForAnyHttpsOrigin"/> allows every https
+/// origin on the default port. Every other check of a guarded client still applies.
+/// </para>
 /// </remarks>
 public sealed class OutboundRequestPolicy
 {
     private readonly Origin[] _origins;
+    private readonly int? _maxConnectionsPerServer;
 
     /// <summary>
     /// Creates a policy.
@@ -44,6 +49,37 @@ public sealed class OutboundRequestPolicy
         MaxResponseBytes = maxResponseBytes;
     }
 
+    private OutboundRequestPolicy(long maxResponseBytes)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxResponseBytes);
+
+        _origins = [];
+        AllowedOrigins = [];
+        AllowsAnyHttpsOrigin = true;
+        MaxResponseBytes = maxResponseBytes;
+    }
+
+    /// <summary>
+    /// Creates a policy that allows any https origin on the default port, for a URL whose host cannot
+    /// be known in advance, such as an OAuth client's metadata document.
+    /// </summary>
+    /// <remarks>
+    /// An http URL and an https URL with a port other than 443 are refused as
+    /// <see cref="OutboundRequestRefusalReason.UnlistedOrigin"/>, before anything is sent. Every other
+    /// check still applies: the connection must go to a public address, redirects are refused, and
+    /// the response is capped. Automatic decompression is off.
+    /// </remarks>
+    /// <param name="maxResponseBytes">The largest response body the client reads, in bytes.</param>
+    /// <param name="maxConnectionsPerServer">
+    /// The most connections the client opens to one server at a time, as
+    /// <see cref="MaxConnectionsPerServer"/>. When it is <see langword="null"/>, there is no limit.
+    /// </param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="maxResponseBytes"/> or <paramref name="maxConnectionsPerServer"/> is not positive.
+    /// </exception>
+    public static OutboundRequestPolicy ForAnyHttpsOrigin(long maxResponseBytes, int? maxConnectionsPerServer = null) =>
+        new(maxResponseBytes) { MaxConnectionsPerServer = maxConnectionsPerServer };
+
     /// <summary>
     /// The allowed origins, normalised to <c>scheme://host</c>, with the port only when it is not the
     /// scheme's default.
@@ -61,7 +97,40 @@ public sealed class OutboundRequestPolicy
     /// </summary>
     public DecompressionMethods AutomaticDecompression { get; init; } = DecompressionMethods.None;
 
-    internal bool Allows(Uri uri) => uri.IsAbsoluteUri && _origins.Contains(Origin.Of(uri));
+    /// <summary>
+    /// Whether the policy allows any https origin on the default port, rather than only
+    /// <see cref="AllowedOrigins"/>, which is then empty. See <see cref="ForAnyHttpsOrigin"/>.
+    /// </summary>
+    public bool AllowsAnyHttpsOrigin { get; }
+
+    /// <summary>
+    /// The most connections the client opens to one server at a time. When it is
+    /// <see langword="null"/>, the default, there is no limit.
+    /// </summary>
+    /// <remarks>
+    /// Set it for a client whose URLs an outsider chooses, so one slow host cannot tie up an
+    /// unbounded number of sockets. A request over the limit waits for a free connection.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">The value is not positive.</exception>
+    public int? MaxConnectionsPerServer
+    {
+        get => _maxConnectionsPerServer;
+        init
+        {
+            if (value is { } max)
+            {
+                ArgumentOutOfRangeException.ThrowIfNegativeOrZero(max, nameof(MaxConnectionsPerServer));
+            }
+
+            _maxConnectionsPerServer = value;
+        }
+    }
+
+    internal bool Allows(Uri uri) =>
+        uri.IsAbsoluteUri
+        && (AllowsAnyHttpsOrigin
+            ? uri.Scheme == Uri.UriSchemeHttps && uri.IsDefaultPort
+            : _origins.Contains(Origin.Of(uri)));
 
     /// <summary>
     /// A scheme, host and port. The host is compared in its IDN (punycode) form, ignoring case.

@@ -12,8 +12,8 @@ namespace Likvido.Http;
 /// <remarks>
 /// A guarded client:
 /// <list type="bullet">
-/// <item>sends a request only to an origin in its <see cref="OutboundRequestPolicy"/>, and refuses any
-/// other before anything is sent;</item>
+/// <item>sends a request only to an origin its <see cref="OutboundRequestPolicy"/> allows, and refuses
+/// any other before anything is sent;</item>
 /// <item>opens a connection only to a public IP address, checking every address the host resolves to
 /// and connecting to the checked address, which defeats DNS rebinding;</item>
 /// <item>follows no redirects, and refuses a redirect response;</item>
@@ -158,6 +158,11 @@ public static class GuardedHttpClientServiceCollectionExtensions
                 // Picks up a DNS change instead of keeping a connection to an old address.
                 PooledConnectionLifetime = TimeSpan.FromMinutes(2)
             };
+
+            if (policy.MaxConnectionsPerServer is { } maxConnectionsPerServer)
+            {
+                socketsHandler.MaxConnectionsPerServer = maxConnectionsPerServer;
+            }
 
             transport.ConfigureHandler(socketsHandler);
 

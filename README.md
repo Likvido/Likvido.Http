@@ -20,7 +20,7 @@ services.AddGuardedHttpClient<IPdfService, PdfService>(
 
 A guarded client:
 
-- sends a request only to an origin in its policy, and refuses any other before anything is sent;
+- sends a request only to an origin its policy allows, and refuses any other before anything is sent;
 - opens a connection only to a public IP address. It checks every address the host resolves to and
   connects to the address it checked, so DNS rebinding cannot swap in a private address;
 - follows no redirects, and refuses a redirect response;
@@ -45,6 +45,27 @@ A guarded client:
   }
   ```
 
+- **`MaxConnectionsPerServer`** limits how many connections the client opens to one server at a
+  time. There is no limit by default. Set it for a client whose URLs an outsider chooses, so one
+  slow host cannot tie up an unbounded number of sockets.
+
+#### Any https origin
+
+When the hosts cannot be listed in advance, such as an OAuth client's metadata document at a URL
+the client chooses, allow any https origin instead:
+
+```csharp
+services.AddGuardedHttpClient(
+        "ClientMetadata",
+        OutboundRequestPolicy.ForAnyHttpsOrigin(maxResponseBytes: 64 * 1024, maxConnectionsPerServer: 8))
+    .ConfigureHttpClient(client => client.Timeout = TimeSpan.FromSeconds(5));
+```
+
+Such a client sends a request to any https URL on the default port (443). It refuses an http URL and
+an https URL with another port as `UnlistedOrigin`, before anything is sent. Every other check
+still applies: the connection goes only to a public address, redirects are refused and the response
+is capped. Automatic decompression is off.
+
 A policy can also be built from the service provider, for example from configuration:
 
 ```csharp
@@ -60,7 +81,8 @@ a typed client without one (`AddGuardedHttpClient<TClient>`) and a named client
 
 ### Refusals
 
-A refused request throws `OutboundRequestRefusedException`. Its `Reason` is one of `UnlistedOrigin`,
+A refused request throws `OutboundRequestRefusedException`. Its `Reason` is one of `UnlistedOrigin`
+(the policy does not allow the origin),
 `NonPublicAddress`, `ResponseTooLarge` and `Redirect`, and its `Origin` is the scheme, the host and any non-default port. It
 does not derive from `HttpRequestException`, so a resilience handler does not retry it.
 

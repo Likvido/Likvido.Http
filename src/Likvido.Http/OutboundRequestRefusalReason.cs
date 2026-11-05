@@ -5,7 +5,7 @@ namespace Likvido.Http;
 /// </summary>
 public enum OutboundRequestRefusalReason
 {
-    /// <summary>The request's scheme, host or port is not in the client's policy. Nothing was sent.</summary>
+    /// <summary>The request's scheme, host or port is not allowed by the client's policy. Nothing was sent.</summary>
     UnlistedOrigin,
 
     /// <summary>The host is, or resolves to, an address that is not on the public internet. No connection was opened.</summary>
