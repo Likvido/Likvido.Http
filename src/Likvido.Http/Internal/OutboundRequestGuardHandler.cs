@@ -97,9 +97,11 @@ internal sealed class OutboundRequestGuardHandler(
             var location = response.Headers.Location;
             response.Dispose();
 
-            var target = location is null
-                ? string.Empty
-                : $" to {RefusalReporter.OriginOf(location.IsAbsoluteUri ? location : new Uri(request.RequestUri!, location))}";
+            // TryCreate, because a hostile relative Location such as //host:99999/ cannot be combined
+            // with the request URL, and the refusal must still be raised.
+            var target = location is not null && Uri.TryCreate(request.RequestUri, location, out var resolved)
+                ? $" to {RefusalReporter.OriginOf(resolved)}"
+                : string.Empty;
 
             throw reporter.Refuse(
                 OutboundRequestRefusalReason.Redirect,

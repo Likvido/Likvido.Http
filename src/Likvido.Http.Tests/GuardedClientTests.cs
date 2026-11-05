@@ -81,6 +81,24 @@ public class GuardedClientTests
     }
 
     [Theory]
+    [InlineData("//evil.example.com:99999/x")]
+    [InlineData("//a%zz/x")]
+    [InlineData("//[::1/x")]
+    public async Task RefusesARedirectWhoseLocationCannotBeResolved(string location)
+    {
+        await using var server = TestServer.Respond(
+            $"HTTP/1.1 302 Found\nLocation: {location}\nContent-Length: 0\nConnection: close\n",
+            []);
+        using var guarded = Http(server, maxResponseBytes: 1_000);
+
+        var refusal = await Should.ThrowAsync<OutboundRequestRefusedException>(
+            () => guarded.Client.GetAsync("http://files.example.com/report.xml", Token));
+
+        refusal.Reason.ShouldBe(OutboundRequestRefusalReason.Redirect);
+        guarded.Logs.Guard.ShouldHaveSingleItem().Level.ShouldBe(LogLevel.Warning);
+    }
+
+    [Theory]
     [InlineData("HEAD", "200 OK")]
     [InlineData("GET", "204 No Content")]
     [InlineData("GET", "304 Not Modified")]

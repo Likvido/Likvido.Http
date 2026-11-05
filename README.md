@@ -73,5 +73,5 @@ exception's message.
 The guard is the client's primary handler, so it runs inside every handler the caller adds, such as
 `AddStandardResilienceHandler`. It sees each request exactly as it is sent.
 
-Do not call `ConfigurePrimaryHttpMessageHandler` on a guarded client outside tests: it replaces the
-guard.
+Do not call `ConfigurePrimaryHttpMessageHandler` or `UseSocketsHttpHandler` on a guarded client
+outside tests: either replaces the guard.

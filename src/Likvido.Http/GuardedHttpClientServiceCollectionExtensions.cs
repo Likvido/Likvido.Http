@@ -27,8 +27,8 @@ namespace Likvido.Http;
 /// The methods return the client's <see cref="IHttpClientBuilder"/>, so the caller can still set the
 /// base address and timeout with <c>ConfigureHttpClient</c> and add handlers, such as
 /// <c>AddStandardResilienceHandler</c>. The guard is the client's primary handler, so handlers the
-/// caller adds run outside it. Do not call <c>ConfigurePrimaryHttpMessageHandler</c> on a guarded
-/// client outside tests: it replaces the guard.
+/// caller adds run outside it. Do not call <c>ConfigurePrimaryHttpMessageHandler</c> or
+/// <c>UseSocketsHttpHandler</c> on a guarded client outside tests: either replaces the guard.
 /// </para>
 /// </remarks>
 public static class GuardedHttpClientServiceCollectionExtensions

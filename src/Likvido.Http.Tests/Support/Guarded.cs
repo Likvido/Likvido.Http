@@ -15,8 +15,6 @@ internal sealed class Guarded : IDisposable
         FakeTransport transport,
         Action<IHttpClientBuilder>? configure = null)
     {
-        Transport = transport;
-
         var services = new ServiceCollection();
         services.AddLogging(logging => logging.AddProvider(Logs).SetMinimumLevel(LogLevel.Trace));
         services.AddSingleton<Internal.OutboundTransport>(transport);
@@ -30,11 +28,7 @@ internal sealed class Guarded : IDisposable
 
     internal CapturedLogs Logs { get; } = new();
 
-    internal FakeTransport Transport { get; }
-
     internal HttpClient Client { get; }
-
-    internal IServiceProvider Services => _provider;
 
     public void Dispose()
     {
