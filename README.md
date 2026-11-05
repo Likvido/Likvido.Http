@@ -24,8 +24,9 @@ A guarded client:
 - opens a connection only to a public IP address. It checks every address the host resolves to and
   connects to the address it checked, so DNS rebinding cannot swap in a private address;
 - follows no redirects, and refuses a redirect response;
-- refuses a response whose `Content-Length` is over the cap, and stops reading a body that passes
-  the cap without one;
+- refuses a response whose `Content-Length` is over the cap, and stops reading any body once it
+  passes the cap. With automatic decompression the `Content-Length` is gone, and the decompressed
+  bytes read are counted;
 - uses no proxy, no cookies and no HTTP/3.
 
 ### The policy
@@ -60,11 +61,11 @@ a typed client without one (`AddGuardedHttpClient<TClient>`) and a named client
 ### Refusals
 
 A refused request throws `OutboundRequestRefusedException`. Its `Reason` is one of `UnlistedOrigin`,
-`NonPublicAddress`, `ResponseTooLarge` and `Redirect`, and its `Origin` is the scheme and host. It
+`NonPublicAddress`, `ResponseTooLarge` and `Redirect`, and its `Origin` is the scheme, the host and any non-default port. It
 does not derive from `HttpRequestException`, so a resilience handler does not retry it.
 
 The guard logs each refusal once, at Warning, in the category `Likvido.Http.OutboundRequestGuard`,
-with the client's name, the scheme and host, and the reason. It never logs the path or query string,
+with the client's name, the origin, and the reason. It never logs the path or query string,
 because a signed storage link carries its credential in the query string. Neither does the
 exception's message.
 

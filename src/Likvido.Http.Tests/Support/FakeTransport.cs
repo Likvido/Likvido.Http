@@ -12,6 +12,10 @@ namespace Likvido.Http.Tests.Support;
 internal sealed class FakeTransport(TestServer? server = null) : OutboundTransport
 {
     private readonly ConcurrentDictionary<string, IPAddress[]> _names = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, IPAddress[]> _laterNames = new(StringComparer.OrdinalIgnoreCase);
+    private int _lookups;
+
+    internal int Lookups => _lookups;
     private readonly ConcurrentQueue<IPAddress[]> _connects = new();
     private readonly ConcurrentDictionary<IPAddress, TestServer> _routes = new();
 
@@ -30,10 +34,30 @@ internal sealed class FakeTransport(TestServer? server = null) : OutboundTranspo
         return this;
     }
 
-    internal override ValueTask<IPAddress[]> ResolveAsync(string host, CancellationToken cancellationToken) =>
-        _names.TryGetValue(host, out var addresses)
+    /// <summary>
+    /// Answers the first lookup of the host with one address and every later lookup with another, as a
+    /// DNS rebinding attacker does.
+    /// </summary>
+    internal FakeTransport Rebind(string host, string first, string later)
+    {
+        _names[host] = [IPAddress.Parse(first)];
+        _laterNames[host] = [IPAddress.Parse(later)];
+        return this;
+    }
+
+    internal override ValueTask<IPAddress[]> ResolveAsync(string host, CancellationToken cancellationToken)
+    {
+        var lookup = Interlocked.Increment(ref _lookups);
+
+        if (lookup > 1 && _laterNames.TryGetValue(host, out var later))
+        {
+            return ValueTask.FromResult(later);
+        }
+
+        return _names.TryGetValue(host, out var addresses)
             ? ValueTask.FromResult(addresses)
             : throw new SocketException((int)SocketError.HostNotFound);
+    }
 
     internal override async ValueTask<Stream> ConnectAsync(IPAddress[] addresses, int port, CancellationToken cancellationToken)
     {

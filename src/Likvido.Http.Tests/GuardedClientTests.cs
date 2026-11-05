@@ -179,6 +179,96 @@ public class GuardedClientTests
         });
     }
 
+    [Fact]
+    public async Task RefusesADeclaredLengthOverTheCapBeforeReadingTheBody()
+    {
+        await using var server = TestServer.Ok(new byte[2_000]);
+        using var guarded = Http(server, maxResponseBytes: 1_000);
+
+        // Headers only, so only the declared-length check can refuse here: no body is read.
+        var refusal = await Should.ThrowAsync<OutboundRequestRefusedException>(
+            () => guarded.Client.GetAsync("http://files.example.com/big", HttpCompletionOption.ResponseHeadersRead, Token));
+
+        refusal.Reason.ShouldBe(OutboundRequestRefusalReason.ResponseTooLarge);
+        refusal.Message.ShouldContain("declares 2000 bytes");
+    }
+
+    [Fact]
+    public async Task ConnectsToTheAddressItCheckedWithoutResolvingTheNameAgain()
+    {
+        await using var server = TestServer.Ok("ok"u8.ToArray());
+        var transport = new FakeTransport(server).Rebind("files.example.com", PublicAddress, "127.0.0.1");
+        using var guarded = new Guarded(Policy("http://files.example.com"), transport);
+
+        (await guarded.Client.GetStringAsync("http://files.example.com/", Token)).ShouldBe("ok");
+
+        transport.Lookups.ShouldBe(1);
+        transport.Connects.ShouldHaveSingleItem().ShouldBe([IPAddress.Parse(PublicAddress)]);
+    }
+
+    [Fact]
+    public void RefusesARedirectOnTheSynchronousPath()
+    {
+        using var server = TestServer.Respond(
+            "HTTP/1.1 302 Found\nLocation: http://169.254.169.254/\nContent-Length: 0\nConnection: close\n",
+            []);
+        using var guarded = Http(server, maxResponseBytes: 1_000);
+
+        var refusal = Should.Throw<OutboundRequestRefusedException>(
+            () => guarded.Client.Send(new HttpRequestMessage(HttpMethod.Get, "http://files.example.com/"), Token));
+
+        refusal.Reason.ShouldBe(OutboundRequestRefusalReason.Redirect);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void RefusesABodyOverTheCapOnTheSynchronousPath(bool streamed)
+    {
+        using var server = TestServer.Ok(new byte[200_000], declareLength: false);
+        using var guarded = Http(server, maxResponseBytes: 1_000);
+
+        var refusal = Should.Throw<OutboundRequestRefusedException>(() =>
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, "http://files.example.com/big");
+            using var response = guarded.Client.Send(
+                request,
+                streamed ? HttpCompletionOption.ResponseHeadersRead : HttpCompletionOption.ResponseContentRead,
+                Token);
+            using var body = response.Content.ReadAsStream(Token);
+            body.CopyTo(Stream.Null);
+        });
+
+        refusal.Reason.ShouldBe(OutboundRequestRefusalReason.ResponseTooLarge);
+    }
+
+    [Fact]
+    public async Task SendsNoCookieItWasGiven()
+    {
+        await using var server = TestServer.Ok("ok"u8.ToArray(), extraHeaders: "Set-Cookie: session=abc; Path=/\n");
+        using var guarded = Http(server, maxResponseBytes: 1_000);
+
+        await guarded.Client.GetStringAsync("http://files.example.com/first", Token);
+        await guarded.Client.GetStringAsync("http://files.example.com/second", Token);
+
+        server.Heads.Count.ShouldBe(2);
+        server.Heads[1].ShouldNotContain("Cookie", Case.Insensitive);
+    }
+
+    [Fact]
+    public async Task UsesNoProxyAndFollowsNoRedirects()
+    {
+        await using var server = TestServer.Ok([]);
+        using var guarded = Http(server, maxResponseBytes: 1_000);
+
+        var socketsHandler = SocketsHandlerOf(guarded);
+
+        socketsHandler.UseProxy.ShouldBeFalse("with a proxy, the connect callback would check the proxy's address");
+        socketsHandler.UseCookies.ShouldBeFalse();
+        socketsHandler.AllowAutoRedirect.ShouldBeFalse();
+        socketsHandler.ConnectCallback.ShouldNotBeNull();
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -239,9 +329,15 @@ public class GuardedClientTests
     [Theory]
     [InlineData("https://elsewhere.example.com/blob/file.pdf?sig=secret-signature", OutboundRequestRefusalReason.UnlistedOrigin)]
     [InlineData("http://files.example.com/blob/file.pdf?sig=secret-signature", OutboundRequestRefusalReason.ResponseTooLarge)]
+    [InlineData("http://files.example.com/redirect/blob/file.pdf?sig=secret-signature", OutboundRequestRefusalReason.Redirect)]
     public async Task EveryRefusalLogsOneWarningWithoutThePathOrQuery(string url, OutboundRequestRefusalReason reason)
     {
-        await using var server = TestServer.Ok(new byte[2_000], declareLength: false);
+        // The redirect points at a signed link too, so neither the request's nor the target's path and query may leak.
+        await using var server = reason == OutboundRequestRefusalReason.Redirect
+            ? TestServer.Respond(
+                "HTTP/1.1 302 Found\nLocation: https://storage.example.com/blob/file.pdf?sig=secret-signature\nContent-Length: 0\nConnection: close\n",
+                [])
+            : TestServer.Ok(new byte[2_000], declareLength: false);
         using var guarded = Http(server, maxResponseBytes: 1_000);
 
         var refusal = await Should.ThrowAsync<OutboundRequestRefusedException>(() => guarded.Client.GetAsync(url, Token));
@@ -353,6 +449,23 @@ public class GuardedClientTests
     }
 
     private static OutboundRequestPolicy Policy(params string[] origins) => new(origins, 1_000_000);
+
+    private static SocketsHttpHandler SocketsHandlerOf(Guarded guarded)
+    {
+        HttpMessageHandler? handler = guarded.HandlerFactory.CreateHandler(Guarded.ClientName);
+
+        while (handler is DelegatingHandler delegating)
+        {
+            if (delegating.InnerHandler is SocketsHttpHandler sockets)
+            {
+                return sockets;
+            }
+
+            handler = delegating.InnerHandler;
+        }
+
+        throw new InvalidOperationException("The guarded client has no SocketsHttpHandler.");
+    }
 
     private static Guarded Http(
         TestServer server,

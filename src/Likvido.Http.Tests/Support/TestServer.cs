@@ -12,7 +12,7 @@ namespace Likvido.Http.Tests.Support;
 /// connection. With <c>tls: true</c> it serves https with a self-signed certificate, which
 /// <see cref="FakeTransport"/> makes the client trust.
 /// </summary>
-internal sealed class TestServer : IAsyncDisposable
+internal sealed class TestServer : IAsyncDisposable, IDisposable
 {
     private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
     private readonly CancellationTokenSource _stop = new();
@@ -20,6 +20,7 @@ internal sealed class TestServer : IAsyncDisposable
     private readonly byte[] _response;
     private readonly Task _loop;
     private readonly List<string> _requests = [];
+    private readonly List<string> _heads = [];
 
     private TestServer(byte[] response, bool tls)
     {
@@ -39,6 +40,18 @@ internal sealed class TestServer : IAsyncDisposable
             lock (_requests)
             {
                 return _requests.ToArray();
+            }
+        }
+    }
+
+    /// <summary>The whole head of each request received: the request line and every header.</summary>
+    internal IReadOnlyList<string> Heads
+    {
+        get
+        {
+            lock (_requests)
+            {
+                return _heads.ToArray();
             }
         }
     }
@@ -97,6 +110,7 @@ internal sealed class TestServer : IAsyncDisposable
                     lock (_requests)
                     {
                         _requests.Add(head.Split("\r\n")[0]);
+                        _heads.Add(head);
                     }
 
                     await stream.WriteAsync(_response, _stop.Token);
@@ -137,6 +151,8 @@ internal sealed class TestServer : IAsyncDisposable
         // Round-tripped through PKCS#12 because macOS cannot serve TLS with an ephemeral key.
         return X509CertificateLoader.LoadPkcs12(certificate.Export(X509ContentType.Pkcs12), password: null);
     }
+
+    public void Dispose() => DisposeAsync().AsTask().GetAwaiter().GetResult();
 
     public async ValueTask DisposeAsync()
     {

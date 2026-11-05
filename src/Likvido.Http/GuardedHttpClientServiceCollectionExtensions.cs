@@ -17,12 +17,13 @@ namespace Likvido.Http;
 /// <item>opens a connection only to a public IP address, checking every address the host resolves to
 /// and connecting to the checked address, which defeats DNS rebinding;</item>
 /// <item>follows no redirects, and refuses a redirect response;</item>
-/// <item>refuses a response that declares a body over the policy's cap, and stops reading one that
-/// passes the cap without declaring its length;</item>
-/// <item>uses no proxy and no cookies.</item>
+/// <item>refuses a response that declares a body over the policy's cap, and stops reading any body
+/// once it passes the cap. With automatic decompression the declared length is gone, and only the
+/// decompressed bytes read are counted;</item>
+/// <item>uses no proxy, no cookies and no HTTP/3.</item>
 /// </list>
 /// A refusal throws <see cref="OutboundRequestRefusedException"/> and logs one Warning with the
-/// client's name, the scheme and host, and the reason. The path and query string are never logged.
+/// client's name, the origin (scheme, host and any non-default port), and the reason. The path and query string are never logged.
 /// <para>
 /// The methods return the client's <see cref="IHttpClientBuilder"/>, so the caller can still set the
 /// base address and timeout with <c>ConfigureHttpClient</c> and add handlers, such as

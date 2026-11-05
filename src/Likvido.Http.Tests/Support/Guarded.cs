@@ -30,6 +30,8 @@ internal sealed class Guarded : IDisposable
 
     internal HttpClient Client { get; }
 
+    internal IHttpMessageHandlerFactory HandlerFactory => _provider.GetRequiredService<IHttpMessageHandlerFactory>();
+
     public void Dispose()
     {
         Client.Dispose();
