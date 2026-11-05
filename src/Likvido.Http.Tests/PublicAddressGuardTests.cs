@@ -43,6 +43,9 @@ public class PublicAddressGuardTests
     [InlineData("::ffff:169.254.169.254", "instance metadata tunnelled through IPv6")]
     [InlineData("::a9fe:a9fe", "instance metadata in the IPv4-compatible form")]
     [InlineData("::ffff:0:a9fe:a9fe", "instance metadata in the IPv4-translated form")]
+    [InlineData("::ffff:0:0:0", "0.0.0.0 in the IPv4-translated form")]
+    [InlineData("::ffff:0:0:1", "0.0.0.1 in the IPv4-translated form")]
+    [InlineData("192.0.0.1", "IETF protocol assignments 192.0.0/24")]
     public void NonPublicAddressesAreRejected(string address, string why)
     {
         PublicAddressGuard.IsPublic(IPAddress.Parse(address), out var reason)
@@ -67,6 +70,9 @@ public class PublicAddressGuardTests
     [InlineData("11.0.0.1", "just above 10/8")]
     [InlineData("2606:4700::1111", "public IPv6")]
     [InlineData("223.255.255.255", "just below multicast")]
+    [InlineData("192.0.1.1", "192.0.x outside the two reserved /24s")]
+    [InlineData("192.0.78.9", "wordpress.com")]
+    [InlineData("192.0.43.7", "icann.org")]
     public void PublicAddressesAreAccepted(string address, string why)
     {
         PublicAddressGuard.IsPublic(IPAddress.Parse(address), out _)

@@ -107,7 +107,11 @@ internal sealed class OutboundRequestGuardHandler(
                 $"the response is a {status} redirect{target}, and redirects are not followed.");
         }
 
-        if (response.Content.Headers.ContentLength is { } declared && declared > policy.MaxResponseBytes)
+        // A HEAD, 204 or 304 response has no body, and its Content-Length describes a body that is not sent.
+        var hasBody = request.Method != HttpMethod.Head
+            && response.StatusCode is not (HttpStatusCode.NoContent or HttpStatusCode.NotModified);
+
+        if (hasBody && response.Content.Headers.ContentLength is { } declared && declared > policy.MaxResponseBytes)
         {
             response.Dispose();
 

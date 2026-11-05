@@ -12,6 +12,7 @@ namespace Likvido.Http.Tests;
 public class GuardedClientTests
 {
     private const string PublicAddress = "93.184.216.34";
+    private const string OtherPublicAddress = "93.184.216.35";
 
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 
@@ -53,6 +54,49 @@ public class GuardedClientTests
         refusal.Message.ShouldContain("http://169.254.169.254");
         server.Requests.ShouldBe(["GET /report.xml HTTP/1.1"]);
         transport.Connects.Count.ShouldBe(1, "only the listed host was connected to");
+    }
+
+    [Fact]
+    public async Task RefusesARedirectToAnotherPublicHttpsHostInsteadOfFollowingIt()
+    {
+        // Two servers, so a followed redirect would reach the second one and get a 200 back.
+        await using var listed = TestServer.Respond(
+            "HTTP/1.1 302 Found\nLocation: https://other.example.com/elsewhere\nContent-Length: 0\nConnection: close\n",
+            [],
+            tls: true);
+        await using var unlisted = TestServer.Ok("followed"u8.ToArray(), tls: true);
+        var transport = new FakeTransport(listed)
+            .Resolve("files.example.com", PublicAddress)
+            .Resolve("other.example.com", OtherPublicAddress)
+            .Route(OtherPublicAddress, unlisted);
+        using var guarded = new Guarded(Policy("https://files.example.com"), transport);
+
+        var refusal = await Should.ThrowAsync<OutboundRequestRefusedException>(
+            () => guarded.Client.GetAsync("https://files.example.com/report.xml", Token));
+
+        refusal.Reason.ShouldBe(OutboundRequestRefusalReason.Redirect);
+        refusal.Message.ShouldContain("https://other.example.com");
+        unlisted.Requests.ShouldBeEmpty();
+        transport.Connects.Count.ShouldBe(1);
+    }
+
+    [Theory]
+    [InlineData("HEAD", "200 OK")]
+    [InlineData("GET", "204 No Content")]
+    [InlineData("GET", "304 Not Modified")]
+    public async Task DoesNotRefuseAResponseWithoutABodyForItsDeclaredLength(string method, string status)
+    {
+        await using var server = TestServer.Respond(
+            $"HTTP/1.1 {status}\nContent-Length: 999999\nConnection: close\n",
+            []);
+        using var guarded = Http(server, maxResponseBytes: 1_000);
+
+        using var response = await guarded.Client.SendAsync(
+            new HttpRequestMessage(new HttpMethod(method), "http://files.example.com/big"),
+            Token);
+
+        ((int)response.StatusCode).ShouldBe(int.Parse(status[..3]));
+        guarded.Logs.Guard.ShouldBeEmpty();
     }
 
     [Theory]

@@ -146,7 +146,7 @@ internal static class PublicAddressGuard
 
         // 192.0.0.0/24 (protocol assignments), 192.0.2.0/24 (documentation),
         // 192.168.0.0/16 (private).
-        if (v4[0] == 192 && (v4[1] == 0 || v4[1] == 168))
+        if (v4[0] == 192 && ((v4[1] == 0 && (v4[2] == 0 || v4[2] == 2)) || v4[1] == 168))
         {
             reason = "reserved or private 192.x";
             return false;
@@ -223,8 +223,8 @@ internal static class PublicAddressGuard
         }
 
         // `::` and `::1` are not embedded IPv4 addresses; leave them to the unspecified and loopback
-        // branches, which name them correctly.
-        if (bytes[12] == 0 && bytes[13] == 0 && (bytes[14] | bytes[15]) is 0 or 1 && bytes[14] == 0)
+        // branches, which name them correctly. Only the IPv4-compatible form can be one of them.
+        if (isCompatible && bytes[12] == 0 && bytes[13] == 0 && bytes[14] == 0 && bytes[15] is 0 or 1)
         {
             return false;
         }

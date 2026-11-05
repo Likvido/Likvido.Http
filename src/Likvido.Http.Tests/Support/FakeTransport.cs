@@ -13,12 +13,20 @@ internal sealed class FakeTransport(TestServer? server = null) : OutboundTranspo
 {
     private readonly ConcurrentDictionary<string, IPAddress[]> _names = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentQueue<IPAddress[]> _connects = new();
+    private readonly ConcurrentDictionary<IPAddress, TestServer> _routes = new();
 
     internal IReadOnlyCollection<IPAddress[]> Connects => _connects;
 
     internal FakeTransport Resolve(string host, params string[] addresses)
     {
         _names[host] = addresses.Select(IPAddress.Parse).ToArray();
+        return this;
+    }
+
+    /// <summary>Sends connections to this address to its own server instead of the default one.</summary>
+    internal FakeTransport Route(string address, TestServer target)
+    {
+        _routes[IPAddress.Parse(address)] = target;
         return this;
     }
 
@@ -31,13 +39,15 @@ internal sealed class FakeTransport(TestServer? server = null) : OutboundTranspo
     {
         _connects.Enqueue(addresses);
 
-        if (server is null)
+        var target = _routes.TryGetValue(addresses[0], out var routed) ? routed : server;
+
+        if (target is null)
         {
             throw new InvalidOperationException("This test has no server, so no connection may be opened.");
         }
 
         var client = new TcpClient();
-        await client.ConnectAsync(IPAddress.Loopback, server.Port, cancellationToken);
+        await client.ConnectAsync(IPAddress.Loopback, target.Port, cancellationToken);
 
         return client.GetStream();
     }
