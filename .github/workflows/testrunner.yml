@@ -1,0 +1,30 @@
+name: "Test Runner"
+
+on:
+  pull_request:
+    branches:
+      - "main"
+  push:
+    branches:
+      - "main"
+
+# The action only checks out the repository and uploads the test results as an artifact, which the
+# Actions runtime token covers, so read access to the contents is all the job token needs.
+permissions:
+  contents: read
+
+jobs:
+  test-runner:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.x
+
+      - name: Run tests
+        uses: likvido/action-test@v2.0
+        with:
+          test-target: src/Likvido.Http.sln
+          framework: net10.0
