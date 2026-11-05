@@ -25,8 +25,8 @@ A guarded client:
   connects to the address it checked, so DNS rebinding cannot swap in a private address;
 - follows no redirects, and refuses a redirect response;
 - refuses a response whose `Content-Length` is over the cap, and stops reading any body once it
-  passes the cap. With automatic decompression the `Content-Length` is gone, and the decompressed
-  bytes read are counted;
+  passes the cap. When a response is decompressed, its `Content-Length` is gone, and the
+  decompressed bytes read are counted;
 - uses no proxy, no cookies and no HTTP/3.
 
 ### The policy

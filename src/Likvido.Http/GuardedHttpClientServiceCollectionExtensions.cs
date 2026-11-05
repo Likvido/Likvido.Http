@@ -18,8 +18,8 @@ namespace Likvido.Http;
 /// and connecting to the checked address, which defeats DNS rebinding;</item>
 /// <item>follows no redirects, and refuses a redirect response;</item>
 /// <item>refuses a response that declares a body over the policy's cap, and stops reading any body
-/// once it passes the cap. With automatic decompression the declared length is gone, and only the
-/// decompressed bytes read are counted;</item>
+/// once it passes the cap. When a response is decompressed, its declared length is gone, and only
+/// the decompressed bytes read are counted;</item>
 /// <item>uses no proxy, no cookies and no HTTP/3.</item>
 /// </list>
 /// A refusal throws <see cref="OutboundRequestRefusedException"/> and logs one Warning with the
