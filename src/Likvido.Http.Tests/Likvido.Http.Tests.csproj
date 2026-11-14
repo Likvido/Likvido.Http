@@ -13,8 +13,8 @@
         <PrivateAssets>all</PrivateAssets>
         <IncludeAssets>compile; runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       </PackageReference>
-      <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.11.0" />
-      <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.14" />
+      <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="11.0.0" />
+      <PackageReference Include="Microsoft.Extensions.Logging" Version="11.0.0" />
       <PackageReference Include="Shouldly" Version="4.3.0" />
 
       <PackageReference Include="xunit.v3" Version="4.0.3" />
