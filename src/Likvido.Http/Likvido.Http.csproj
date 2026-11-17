@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -15,11 +15,6 @@
     <Import Project="$(ProjectDir)../version.props" />
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.14" />
-        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
-    </ItemGroup>
-
-    <ItemGroup>
         <None Include="../../README.md" Pack="true" PackagePath="/" />
     </ItemGroup>
 
@@ -28,4 +23,13 @@
         <InternalsVisibleTo Include="Likvido.Http.Tests" />
     </ItemGroup>
 
+    <!-- Packages that version with the runtime: the net10.0 build references 10.0.x, the net11.0 build 11.0.x. -->
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+        <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.14" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(TargetFramework)' == 'net11.0'">
+        <PackageReference Include="Microsoft.Extensions.Http" Version="11.0.0" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="11.0.0" />
+    </ItemGroup>
 </Project>
