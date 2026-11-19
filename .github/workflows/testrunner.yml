@@ -21,10 +21,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
         with:
-          # The .NET 11 SDK builds both targets; the .NET 10 runtime runs the net10.0 tests.
-          dotnet-version: |
-            10.x
-            11.x
+          dotnet-version: 11.x
 
       - name: Run tests
         uses: likvido/action-test@v2.0
