@@ -24,6 +24,6 @@ jobs:
           dotnet-version: 11.x
 
       - name: Run tests
-        uses: likvido/action-test@v2.0
+        uses: likvido/action-test@v2.1
         with:
           test-target: src/Likvido.Http.sln
